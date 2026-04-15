@@ -1,73 +1,96 @@
 from fastapi import FastAPI
 import requests
-from google import genai
-import json
-import re
-import os
-import time
 
-# ---------------- CONFIG ----------------
 app = FastAPI()
 
-# client = genai.Client(api_key=os.getenv("AIzaSyCjPKpPbdZWBXLu6taF8vJNkKTMK7Vw7tM"))
-client = genai.Client(api_key="AIzaSyCjPKpPbdZWBXLu6taF8vJNkKTMK7Vw7tM")
+# ---------------- CONFIG ----------------
+OLLAMA_URL = "http://localhost:11434/api/generate"
 
 MATH_URL = "http://localhost:8001/solve"
 PHYSICS_URL = "http://localhost:8002/solve"
 BIOLOGY_URL = "http://localhost:8003/solve"
 
-TIMEOUT = 5
+TIMEOUT = 120
 
 
-# ---------------- HELPER: JSON CLEAN ----------------
-def extract_json(text: str):
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    return match.group() if match else text
+# ---------------- OLLAMA CALL ----------------
+def call_tinyllama(prompt):
+
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": "tinyllama",
+                "prompt": prompt,
+                "stream": False
+            },
+            timeout=TIMEOUT
+        )
+
+        return response.json()["response"]
+
+    except Exception as e:
+        print("TinyLlama ERROR:", e)
+        return ""
 
 
 # ---------------- CLASSIFIER ----------------
-def classify(query: str) -> str:
+# def classify(query):
+#     prompt = f"""
+#         You are a STRICT classifier.
 
+#         Categories:
+#         - math → numbers, equations, derivatives, integrals
+#         - physics → force, motion, laws, energy
+#         - biology → cells, DNA, reproduction
+
+#         Return ONLY one word:
+#         math OR physics OR biology OR general
+
+#         Query: {query}
+# """
+
+#     result = call_tinyllama(prompt).lower()
+
+#     # robust parsing
+#     if "math" in result:
+#         return "math"
+#     elif "physics" in result:
+#         return "physics"
+#     elif "biology" in result:
+#         return "biology"
+#     else:
+#         return "general"
+
+import re
+def classify(query):
+
+    q = query.lower()
+
+    # ✅ RULE BASED FIRST (VERY IMPORTANT)
+    if any(x in q for x in ["force", "law", "newton", "motion"]):
+        return "physics"
+    if any(x in q for x in ["derivative", "integral"]):
+        return "math"
+    if any(x in q for x in ["dna", "cell", "reproduction"]):
+        return "biology"
+
+    # fallback to LLM
     prompt = f"""
-    You are a strict classifier.
-
-    Classify the query into EXACTLY ONE domain:
-    - math
-    - physics
-    - biology
-    - general
-
-    Rules:
-    - Choose ONLY ONE most relevant domain
-    - No explanation
-    - Return ONLY JSON
-
-    Format:
-    {{
-      "domain": "math | physics | biology | general"
-    }}
+    Return ONLY ONE WORD:
+    math physics biology general
 
     Query: {query}
     """
 
-    for _ in range(3):  # retry logic
-        try:
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt
-            )
+    result = call_tinyllama(prompt).lower()
 
-            text = extract_json(response.text)
-            data = json.loads(text)
+    match = re.search(r"\b(math|physics|biology|general)\b", result)
 
-            return data.get("domain", "general")
-
-        except Exception as e:
-            print("Classifier error, retrying:", e)
-            time.sleep(2)
+    if match:
+        return match.group(1)
 
     return "general"
-
 
 # ---------------- SERVICE CALL ----------------
 def call_service(url, query):
@@ -78,21 +101,16 @@ def call_service(url, query):
             json={"query": query},
             timeout=TIMEOUT
         )
+
         return res.json().get("answer", "No response")
 
     except Exception as e:
-        print("Service call failed:", e)
+        print("Service ERROR:", e)
         return "Service unavailable"
 
 
-# ---------------- ROUTER ----------------
-@app.post("/ask")
-def ask(data: dict):
-
-    query = data.get("query", "")
-
-    if not query:
-        return {"error": "Query is required"}
+# ---------------- MAIN ROUTER ----------------
+def handle_query(query):
 
     # Step 1: classify
     domain = classify(query)
@@ -110,9 +128,287 @@ def ask(data: dict):
     else:
         answer = "Handled by general system"
 
-    # Step 3: return response
+    # Step 3: response
     return {
         "query": query,
         "domain": domain,
         "response": answer
     }
+
+
+# ---------------- API ----------------
+@app.post("/ask")
+def ask(data: dict):
+
+    query = data.get("query", "")
+
+    if not query:
+        return {"error": "Query is required"}
+
+    return handle_query(query)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# # from fastapi import FastAPI
+# # import requests
+# # from google import genai
+# # import json
+# # # from dotenv import load_dotenv
+# # import os
+# # import time
+
+# # # ---------------- CONFIG ----------------
+# # app = FastAPI()
+
+# # # ✅ Use environment variable (IMPORTANT)
+# # # client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# # # import os
+
+# # # load_dotenv(".env.local")   # 👈 load file
+
+# # client = genai.Client(api_key="AIzaSyCjPKpPbdZWBXLu6taF8vJNkKTMK7Vw7tM")
+
+# # MATH_URL = "http://localhost:8001/solve"
+# # PHYSICS_URL = "http://localhost:8002/solve"
+# # BIOLOGY_URL = "http://localhost:8003/solve"
+
+# # TIMEOUT = 5
+
+
+# # # ---------------- HELPER: JSON CLEAN ----------------
+# # def extract_json(text: str):
+# #     try:
+# #         start = text.index("{")
+# #         end = text.rindex("}") + 1
+# #         return text[start:end]
+# #     except:
+# #         return "{}"
+
+
+# # # ---------------- RULE-BASED FALLBACK ----------------
+# # def fallback_rule(query):
+# #     q = query.lower()
+
+# #     if any(word in q for word in ["force", "law", "motion", "energy"]):
+# #         return "physics"
+# #     if any(word in q for word in ["derivative", "integral"]):
+# #         return "math"
+# #     if any(word in q for word in ["dna", "cell", "reproduction"]):
+# #         return "biology"
+
+# #     return "general"
+
+
+# # # ---------------- CLASSIFIER ----------------
+# # def classify(query):
+
+# #     prompt = f"""
+# #     You are a STRICT domain classifier.
+
+# #     Classify the query into EXACTLY ONE domain:
+# #     - math
+# #     - physics
+# #     - biology
+# #     - general
+
+# #     Rules:
+# #     - Questions about force, motion, laws, energy → physics
+# #     - Questions about derivatives, integrals → math
+# #     - Questions about cells, DNA, reproduction → biology
+# #     - Only choose "general" if none match
+
+# #     Return ONLY JSON:
+# #     {{ "domain": "physics" }}
+
+# #     Query: {query}
+# #     """
+
+# #     try:
+# #         response = client.models.generate_content(
+# #             model="gemini-2.5-flash",
+# #             contents=prompt,
+# #             config={"temperature": 0}
+# #         )
+
+# #         print("\nRAW GEMINI:", response.text)
+
+# #         text = extract_json(response.text)
+# #         data = json.loads(text)
+
+# #         domain = data.get("domain", "general").lower()
+
+# #         if domain not in ["math", "physics", "biology", "general"]:
+# #             return fallback_rule(query)
+
+# #         return domain
+
+# #     except Exception as e:
+# #         print("Classifier ERROR:", e)
+# #         return fallback_rule(query)
+
+
+# # # ---------------- SERVICE CALL ----------------
+# # def call_service(url, query):
+
+# #     try:
+# #         res = requests.post(
+# #             url,
+# #             json={"query": query},
+# #             timeout=TIMEOUT
+# #         )
+
+# #         return res.json().get("answer", "No response")
+
+# #     except Exception as e:
+# #         print("Service call failed:", e)
+# #         return "Service unavailable"
+
+
+# # # ---------------- ROUTER ----------------
+# # @app.post("/ask")
+# # def ask(data: dict):
+
+# #     query = data.get("query", "")
+
+# #     if not query:
+# #         return {"error": "Query is required"}
+
+# #     # Step 1: classify
+# #     domain = classify(query)
+
+# #     # Step 2: route
+# #     if domain == "math":
+# #         answer = call_service(MATH_URL, query)
+
+# #     elif domain == "physics":
+# #         answer = call_service(PHYSICS_URL, query)
+
+# #     elif domain == "biology":
+# #         answer = call_service(BIOLOGY_URL, query)
+
+# #     else:
+# #         answer = "Handled by general system"
+
+# #     # Step 3: response
+# #     return {
+# #         "query": query,
+# #         "domain": domain,
+# #         "response": answer
+# #     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# import requests
+
+# def call_tinyllama(prompt):
+
+#     response = requests.post(
+#         "http://localhost:11434/api/generate",
+#         json={
+#             "model": "tinyllama",
+#             "prompt": prompt,
+#             "stream": False
+#         },
+#         timeout=30
+#     )
+
+#     return response.json()["response"]
+
+
+# def classify(query):
+
+#     prompt = f"""
+#     Classify the query into ONE domain:
+#     math, physics, biology, general
+
+#     ONLY return ONE word.
+
+#     Query: {query}
+#     """
+
+#     result = call_tinyllama(prompt).lower()
+
+#     # robust parsing
+#     if "math" in result:
+#         return "math"
+#     elif "physics" in result:
+#         return "physics"
+#     elif "biology" in result:
+#         return "biology"
+#     else:
+#         return "general"
