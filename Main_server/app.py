@@ -91,7 +91,15 @@ def handle_query(query):
         "domain": domain
     }
 
-    producer.send(TOPIC, message)
+    # producer.send(TOPIC, message)
+    if domain == "physics":
+        producer.send("physics_topic", {"query": query})
+
+    elif domain == "math":
+            producer.send("math_topic", {"query": query})
+
+    elif domain == "biology":
+            producer.send("biology_topic", {"query": query})
     producer.flush()
 
     # Step 3: return immediately (async system)
