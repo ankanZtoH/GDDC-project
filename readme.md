@@ -18,6 +18,10 @@ bin/kafka-topics.sh --create --topic biology_topic --bootstrap-server localhost:
 # Machine 1 
 cd Math_server 
 python3 consumer.py
+# Install following packages
+'pip install kafka-python requests'
+
+# set main machine ip in each machine 
 
 #Machine 2
 cd Physics_server 
