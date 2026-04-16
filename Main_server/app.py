@@ -1,17 +1,31 @@
+#=====================================================================================
+
+################ KAFKA #############################
+
+#=======================================================================================================================================================================
+
+
 from fastapi import FastAPI
 import requests
+from kafka import KafkaProducer
+import json
+import re
 
 app = FastAPI()
 
 # ---------------- CONFIG ----------------
 OLLAMA_URL = "http://localhost:11434/api/generate"
-
-MATH_URL = "http://localhost:8001/solve"
-PHYSICS_URL = "http://localhost:8002/solve"
-BIOLOGY_URL = "http://localhost:8003/solve"
-
 TIMEOUT = 120
 
+# Kafka Config
+KAFKA_SERVER = "localhost:9092"
+TOPIC = "query_topic"
+
+# ---------------- KAFKA PRODUCER ----------------
+producer = KafkaProducer(
+    bootstrap_servers=KAFKA_SERVER,
+    value_serializer=lambda v: json.dumps(v).encode('utf-8')
+)
 
 # ---------------- OLLAMA CALL ----------------
 def call_tinyllama(prompt):
@@ -35,39 +49,11 @@ def call_tinyllama(prompt):
 
 
 # ---------------- CLASSIFIER ----------------
-# def classify(query):
-#     prompt = f"""
-#         You are a STRICT classifier.
-
-#         Categories:
-#         - math → numbers, equations, derivatives, integrals
-#         - physics → force, motion, laws, energy
-#         - biology → cells, DNA, reproduction
-
-#         Return ONLY one word:
-#         math OR physics OR biology OR general
-
-#         Query: {query}
-# """
-
-#     result = call_tinyllama(prompt).lower()
-
-#     # robust parsing
-#     if "math" in result:
-#         return "math"
-#     elif "physics" in result:
-#         return "physics"
-#     elif "biology" in result:
-#         return "biology"
-#     else:
-#         return "general"
-
-import re
 def classify(query):
 
     q = query.lower()
 
-    # ✅ RULE BASED FIRST (VERY IMPORTANT)
+    # ✅ RULE BASED FIRST
     if any(x in q for x in ["force", "law", "newton", "motion"]):
         return "physics"
     if any(x in q for x in ["derivative", "integral"]):
@@ -92,22 +78,6 @@ def classify(query):
 
     return "general"
 
-# ---------------- SERVICE CALL ----------------
-def call_service(url, query):
-
-    try:
-        res = requests.post(
-            url,
-            json={"query": query},
-            timeout=TIMEOUT
-        )
-
-        return res.json().get("answer", "No response")
-
-    except Exception as e:
-        print("Service ERROR:", e)
-        return "Service unavailable"
-
 
 # ---------------- MAIN ROUTER ----------------
 def handle_query(query):
@@ -115,24 +85,20 @@ def handle_query(query):
     # Step 1: classify
     domain = classify(query)
 
-    # Step 2: route
-    if domain == "math":
-        answer = call_service(MATH_URL, query)
+    # Step 2: send to Kafka
+    message = {
+        "query": query,
+        "domain": domain
+    }
 
-    elif domain == "physics":
-        answer = call_service(PHYSICS_URL, query)
+    producer.send(TOPIC, message)
+    producer.flush()
 
-    elif domain == "biology":
-        answer = call_service(BIOLOGY_URL, query)
-
-    else:
-        answer = "Handled by general system"
-
-    # Step 3: response
+    # Step 3: return immediately (async system)
     return {
         "query": query,
         "domain": domain,
-        "response": answer
+        "status": "Sent to Kafka (processing...)"
     }
 
 
@@ -146,6 +112,129 @@ def ask(data: dict):
         return {"error": "Query is required"}
 
     return handle_query(query)
+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# from fastapi import FastAPI
+# import requests
+
+# app = FastAPI()
+
+# # ---------------- CONFIG ----------------
+# OLLAMA_URL = "http://localhost:11434/api/generate"
+
+# MATH_URL = "http://localhost:8001/solve"
+# PHYSICS_URL = "http://localhost:8002/solve"
+# BIOLOGY_URL = "http://localhost:8003/solve"
+
+# TIMEOUT = 120
+
+
+# # ---------------- OLLAMA CALL ----------------
+# def call_tinyllama(prompt):
+
+#     try:
+#         response = requests.post(
+#             OLLAMA_URL,
+#             json={
+#                 "model": "tinyllama",
+#                 "prompt": prompt,
+#                 "stream": False
+#             },
+#             timeout=TIMEOUT
+#         )
+
+#         return response.json()["response"]
+
+#     except Exception as e:
+#         print("TinyLlama ERROR:", e)
+#         return ""
+
+
+# import re
+# def classify(query):
+
+#     q = query.lower()
+
+#     # ✅ RULE BASED FIRST (VERY IMPORTANT)
+#     if any(x in q for x in ["force", "law", "newton", "motion"]):
+#         return "physics"
+#     if any(x in q for x in ["derivative", "integral"]):
+#         return "math"
+#     if any(x in q for x in ["dna", "cell", "reproduction"]):
+#         return "biology"
+
+#     # fallback to LLM
+#     prompt = f"""
+#     Return ONLY ONE WORD:
+#     math physics biology general
+
+#     Query: {query}
+#     """
+
+#     result = call_tinyllama(prompt).lower()
+
+#     match = re.search(r"\b(math|physics|biology|general)\b", result)
+
+#     if match:
+#         return match.group(1)
+
+#     return "general"
+
+# # ---------------- SERVICE CALL ----------------
+# def call_service(url, query):
+
+#     try:
+#         res = requests.post(
+#             url,
+#             json={"query": query},
+#             timeout=TIMEOUT
+#         )
+
+#         return res.json().get("answer", "No response")
+
+#     except Exception as e:
+#         print("Service ERROR:", e)
+#         return "Service unavailable"
+
+
+# # ---------------- MAIN ROUTER ----------------
+# def handle_query(query):
+
+#     # Step 1: classify
+#     domain = classify(query)
+
+#     # Step 2: route
+#     if domain == "math":
+#         answer = call_service(MATH_URL, query)
+
+#     elif domain == "physics":
+#         answer = call_service(PHYSICS_URL, query)
+
+#     elif domain == "biology":
+#         answer = call_service(BIOLOGY_URL, query)
+
+#     else:
+#         answer = "Handled by general system"
+
+#     # Step 3: response
+#     return {
+#         "query": query,
+#         "domain": domain,
+#         "response": answer
+#     }
+
+
+# # ---------------- API ----------------
+# @app.post("/ask")
+# def ask(data: dict):
+
+#     query = data.get("query", "")
+
+#     if not query:
+#         return {"error": "Query is required"}
+
+#     return handle_query(query)
 
 
 
