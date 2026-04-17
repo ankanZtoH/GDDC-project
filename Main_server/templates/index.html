@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GDDC AI System</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            width: 600px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+        }
+
+        h2 {
+            text-align: center;
+        }
+
+        .chat-box {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .msg {
+            margin: 8px 0;
+        }
+
+        .user {
+            text-align: right;
+            color: #ffd369;
+        }
+
+        .bot {
+            text-align: left;
+            color: #00ffcc;
+        }
+
+        .input-area {
+            display: flex;
+        }
+
+        input {
+            flex: 1;
+            padding: 10px;
+            border-radius: 10px;
+            border: none;
+            outline: none;
+        }
+
+        button {
+            margin-left: 10px;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 10px;
+            background: #00c6ff;
+            color: black;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #0072ff;
+            color: white;
+        }
+
+        .loading {
+            font-style: italic;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+    <h2>🤖 GDDC AI Assistant</h2>
+
+    <div class="chat-box" id="chat"></div>
+
+    <div class="input-area">
+        <input type="text" id="query" placeholder="Ask something...">
+        <button onclick="sendQuery()">Ask</button>
+    </div>
+</div>
+
+<script>
+function addMessage(text, type) {
+    const chat = document.getElementById("chat");
+    const div = document.createElement("div");
+    div.className = "msg " + type;
+    div.innerText = text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+function sendQuery() {
+    const input = document.getElementById("query");
+    const query = input.value;
+
+    if (!query) return;
+
+    addMessage("You: " + query, "user");
+    input.value = "";
+
+    const loadingMsg = document.createElement("div");
+    loadingMsg.className = "msg bot loading";
+    loadingMsg.innerText = "Thinking...";
+    document.getElementById("chat").appendChild(loadingMsg);
+
+    fetch("/ask", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ query: query })
+    })
+    .then(res => res.json())
+    .then(data => {
+        loadingMsg.remove();
+
+        addMessage(
+            "Domain: " + data.domain + "\nStatus: " + data.status,
+            "bot"
+        );
+    })
+    .catch(err => {
+        loadingMsg.remove();
+        addMessage("Error: " + err, "bot");
+    });
+}
+</script>
+
+</body>
+</html>
