@@ -34,7 +34,7 @@ def call_tinyllama(prompt):
         response = requests.post(
             OLLAMA_URL,
             json={
-                "model": "tinyllama",
+                "model": "llama3",
                 "prompt": prompt,
                 "stream": False
             },
