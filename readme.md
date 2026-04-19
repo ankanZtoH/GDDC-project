@@ -16,6 +16,10 @@ bin/kafka-topics.sh --create --topic physics_topic --bootstrap-server localhost:
 bin/kafka-topics.sh --create --topic math_topic --bootstrap-server localhost:9092
 bin/kafka-topics.sh --create --topic biology_topic --bootstrap-server localhost:9092
 
+# Which topic is created till now 
+bin/kafka-topics.sh --list --bootstrap-server localhost:9092
+
+
 
 
 3. Then on dfffernet domain on different computer 
@@ -38,7 +42,8 @@ python3 consumer.py
 
 4 .  Run Main server 
 # Main Machine as
-uvicorn app:app --port 8000 --reload
+uvicorn app:app --port 8000 --reload    ## this is for query ask from terminal
+uvicorn app1:app --port 8000           ## this is for query ask from UI
 
 
 5. Ask Query 
