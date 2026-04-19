@@ -7,7 +7,7 @@ import re
 import os
 
 app = FastAPI()
-
+responses = {}
 # ---------------- UI SETUP ----------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -106,13 +106,23 @@ def send_to_kafka(query, domain):
                 })
 
         elif domain == "math":
-            producer.send("math_topic", {"query": query})
+            producer.send("math_topic", {
+                "query": query,
+                 "callback_url": "http://172.20.251.85:8000/receive"
+                })
 
         elif domain == "biology":
-            producer.send("biology_topic", {"query": query})
+            producer.send("biology_topic", {
+                "query": query,
+                 "callback_url": "http://172.20.251.85:8000/receive"
+                })
 
         else:
-            producer.send("general_topic", {"query": query})
+            producer.send("general_topic", {
+                "query": query,
+                "callback_url": "http://172.20.251.85:8000/receive"
+                
+                })
 
         producer.flush()
 
@@ -132,7 +142,17 @@ def handle_query(query):
         "status": "Sent to Kafka (processing...)"
     }
 
+@app.post("/receive")
+def receive(data: dict):
+    query = data["query"]
+    answer = data["answer"]
 
+    print("Answer received:", data)
+
+    # ✅ store answer
+    responses[query] = answer
+
+    return {"status": "ok"}
 # ---------------- API ----------------
 @app.post("/ask")
 def ask(data: dict):
