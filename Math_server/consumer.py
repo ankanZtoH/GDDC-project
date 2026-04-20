@@ -3,8 +3,9 @@ import json
 import requests
 
 # ---------------- CONFIG ----------------
-KAFKA_SERVER = "192.168.1.10:9092"   # 🔥 Kafka machine IP
-TOPIC = "query_topic"
+KAFKA_SERVER = "172.20.251.85:9092"   # 🔥 Kafka machine IP
+TOPIC = "math_topic"
+
 
 
 # ---------------- MODEL CALL ----------------
@@ -18,7 +19,7 @@ def call_model(prompt):
                 "prompt": prompt,
                 "stream": False
             },
-            timeout=60
+            timeout=120
         )
 
         return response.json()["response"]
@@ -41,22 +42,30 @@ print("Math consumer started...")
 for msg in consumer:
 
     data = msg.value
+    callback_url = data.get("callback_url")
 
     # 👉 Only handle math queries
-    if data.get("domain") == "math":
+   
+    query = data.get("query")
 
-        query = data.get("query")
+    print("\nReceived:", query)
 
-        print("\nReceived:", query)
-
-        prompt = f"""
+    prompt = f"""
         You are a mathematics expert.
+        whatever step needed give it in brief
 
-        Solve step by step:
-
-        {query}
+    {query}
         """
 
-        answer = call_model(prompt)
+    answer = call_model(prompt)
 
-        print("Answer:", answer)
+    print("Answer:", answer)
+
+    try:
+        if callback_url:
+            requests.post(callback_url,json={
+                "query": query,
+                "answer": answer
+            })
+    except Exception as e:
+        print("Not found")

@@ -154,6 +154,19 @@ def receive(data: dict):
 
     return {"status": "ok"}
 # ---------------- API ----------------
+
+# @app.get("/get_answer")
+# def get_answer(query: str):
+#     query = query.strip().lower()
+
+#     answer = responses.get(query)
+
+#     if answer:
+#         return {"answer": answer}
+#     return {"answer": None}
+
+
+
 @app.post("/ask")
 def ask(data: dict):
     query = data.get("query", "").strip()

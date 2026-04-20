@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Distributive question answering system GDDC</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet">
+
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --neon-cyan: #00f5ff;
+            --neon-blue: #0080ff;
+            --neon-violet: #7b2fff;
+            --neon-green: #00ff9d;
+            --neon-amber: #ffb700;
+            --dark-bg: #040a14;
+            --panel-bg: rgba(4, 18, 38, 0.85);
+            --border-glow: rgba(0, 245, 255, 0.3);
+            --grid-color: rgba(0, 100, 200, 0.07);
+        }
+
+        html, body {
+            width: 100%; height: 100%;
+            background: var(--dark-bg);
+            font-family: 'Exo 2', sans-serif;
+            overflow: hidden;
+            color: white;
+        }
+
+        body::before {
+            content: '';
+            position: fixed; inset: 0;
+            background-image:
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none; z-index: 0;
+        }
+
+        .corner { position: fixed; width: 60px; height: 60px; }
+        .corner::before, .corner::after { content:''; position:absolute; background: var(--neon-cyan); }
+        .corner::before { width: 2px; height: 40px; }
+        .corner::after { width: 40px; height: 2px; }
+        .c-tl { top:16px; left:16px; }
+        .c-tr { top:16px; right:16px; transform:scaleX(-1); }
+        .c-bl { bottom:16px; left:16px; transform:scaleY(-1); }
+        .c-br { bottom:16px; right:16px; transform:scale(-1); }
+
+        .scene {
+            position: relative; z-index: 2;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            height: 100vh; padding: 20px;
+        }
+
+        .header {
+            text-align: center; margin-bottom: 18px;
+        }
+
+        .logo-ring {
+            width: 60px; height: 60px;
+            margin: 0 auto 10px;
+            position: relative;
+        }
+
+        .logo-ring svg { width: 100%; height: 100%; }
+
+        .logo-icon {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px;
+        }
+
+        .title {
+            font-family: 'Orbitron', monospace;
+            font-size: 20px; font-weight: 900;
+            letter-spacing: 4px;
+            color: var(--neon-cyan);
+            text-transform: uppercase;
+            text-shadow: 0 0 10px var(--neon-cyan), 0 0 20px var(--neon-cyan);
+        }
+
+        .subtitle {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            color: rgba(0,245,255,0.5);
+            letter-spacing: 3px;
+            margin-top: 4px;
+        }
+
+        /* ── Panel ── */
+        .panel {
+            width: min(820px, 96vw);
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(0,245,255,0.25);
+            border-radius: 4px;
+            box-shadow: 0 0 18px rgba(0,245,255,0.3), inset 0 0 12px rgba(0,245,255,0.05);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-bar {
+            display: flex; align-items: center;
+            justify-content: space-between;
+            padding: 10px 18px;
+            border-bottom: 1px solid rgba(0,245,255,0.15);
+            background: rgba(0,245,255,0.04);
+            flex-shrink: 0;
+        }
+
+        .panel-dots { display: flex; gap: 6px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .dot-r { background: #ff4757; box-shadow: 0 0 6px #ff4757; }
+        .dot-y { background: var(--neon-amber); box-shadow: 0 0 6px var(--neon-amber); }
+        .dot-g { background: var(--neon-green); box-shadow: 0 0 6px var(--neon-green); }
+
+        .panel-label {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: rgba(0,245,255,0.6);
+            letter-spacing: 2px;
+        }
+
+        .status-badge {
+            display: flex; align-items: center; gap: 5px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px; color: var(--neon-green);
+        }
+
+        .status-dot {
+            width: 6px; height: 6px;
+            border-radius: 50%; background: var(--neon-green);
+            box-shadow: 0 0 8px var(--neon-green);
+        }
+
+        /* ── Chat ── */
+        .chat-box {
+            height: 460px;
+            overflow-y: auto;
+            padding: 20px 20px;
+            display: flex; flex-direction: column; gap: 20px;
+            background-image: repeating-linear-gradient(
+                0deg, transparent, transparent 28px,
+                rgba(0,245,255,0.012) 28px, rgba(0,245,255,0.012) 29px
+            );
+        }
+
+        .chat-box::-webkit-scrollbar { width: 4px; }
+        .chat-box::-webkit-scrollbar-track { background: transparent; }
+        .chat-box::-webkit-scrollbar-thumb { background: rgba(0,245,255,0.3); border-radius: 2px; }
+
+        /* ── Message wrappers ── */
+        .msg-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .msg-wrap.user-wrap { align-items: flex-end; }
+        .msg-wrap.bot-wrap  { align-items: flex-start; }
+
+        .msg-label {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 2px;
+            padding: 0 3px;
+        }
+        .user-wrap .msg-label { color: rgba(0,128,255,0.55); }
+        .bot-wrap  .msg-label { color: rgba(0,245,255,0.45); }
+
+        /* ── Bubbles ── */
+        .msg {
+            max-width: 90%;
+            padding: 13px 17px;
+            font-size: 13px; line-height: 1.75;
+            white-space: pre-wrap;
+            font-family: 'Share Tech Mono', monospace;
+            word-break: break-word;
+        }
+
+        .user {
+            background: rgba(0,128,255,0.12);
+            border: 1px solid rgba(0,128,255,0.4);
+            color: #a8d4ff;
+            border-radius: 2px 2px 0 2px;
+        }
+
+        .bot {
+            background: rgba(0,245,255,0.06);
+            border: 1px solid rgba(0,245,255,0.22);
+            color: var(--neon-cyan);
+            border-radius: 2px 2px 2px 0;
+            width: 100%;
+            max-width: 100%;
+        }
+
+        /* ── Status row inside bot bubble ── */
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            color: rgba(0,245,255,0.6);
+        }
+
+        /* ── Loading dots (static visual) ── */
+        .loading-dots {
+            display: inline-flex; gap: 4px; align-items: center;
+        }
+        .loading-dots span {
+            display: inline-block;
+            width: 5px; height: 5px;
+            border-radius: 50%;
+            background: var(--neon-amber);
+        }
+        .loading-dots span:nth-child(1) { opacity: 0.9; }
+        .loading-dots span:nth-child(2) { opacity: 0.55; }
+        .loading-dots span:nth-child(3) { opacity: 0.2; }
+
+        /* ── Answer block ── */
+        .answer-block {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(0,245,255,0.14);
+        }
+
+        .answer-meta {
+            font-size: 9px;
+            letter-spacing: 2.5px;
+            color: rgba(0,245,255,0.4);
+            margin-bottom: 8px;
+        }
+
+        .answer-text {
+            font-size: 13px;
+            line-height: 1.85;
+            color: #dff8ff;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        /* ── Divider ── */
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(0,245,255,0.3), rgba(123,47,255,0.3), transparent);
+            flex-shrink: 0;
+        }
+
+        /* ── Input area ── */
+        .input-area {
+            display: flex; align-items: center; gap: 10px;
+            padding: 14px 18px;
+            flex-shrink: 0;
+        }
+
+        .input-wrap { flex: 1; position: relative; }
+
+        .input-wrap::before {
+            content: '>';
+            position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+            color: var(--neon-cyan); opacity: 0.6;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 14px;
+            pointer-events: none;
+        }
+
+        input {
+            width: 100%;
+            padding: 11px 12px 11px 26px;
+            background: rgba(0,245,255,0.04);
+            border: 1px solid rgba(0,245,255,0.2);
+            border-radius: 2px;
+            color: #c8f0ff;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 13px;
+            outline: none;
+            letter-spacing: 0.5px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        input::placeholder { color: rgba(0,245,255,0.25); }
+
+        input:focus {
+            border-color: rgba(0,245,255,0.5);
+            box-shadow: 0 0 12px rgba(0,245,255,0.1), inset 0 0 8px rgba(0,245,255,0.04);
+        }
+
+        button {
+            padding: 11px 22px;
+            background: linear-gradient(135deg, rgba(0,128,255,0.3), rgba(123,47,255,0.3));
+            border: 1px solid rgba(0,245,255,0.35);
+            border-radius: 2px;
+            color: var(--neon-cyan);
+            font-family: 'Orbitron', monospace;
+            font-size: 11px; font-weight: 700;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background: linear-gradient(135deg, rgba(0,128,255,0.5), rgba(123,47,255,0.5));
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 16px rgba(0,245,255,0.25);
+            transform: translateY(-1px);
+        }
+
+        button:active { transform: translateY(0) scale(0.98); }
+
+        /* ── Footer ── */
+        .panel-footer {
+            display: flex; justify-content: space-between;
+            align-items: center;
+            padding: 8px 18px;
+            border-top: 1px solid rgba(0,245,255,0.1);
+            background: rgba(0,0,0,0.2);
+            flex-shrink: 0;
+        }
+
+        .stat {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            color: rgba(0,245,255,0.35);
+            letter-spacing: 1px;
+        }
+        .stat span { color: rgba(0,245,255,0.65); }
+
+        /* ── Welcome ── */
+        .welcome-msg {
+            align-self: center;
+            text-align: center;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: rgba(0,245,255,0.3);
+            padding: 28px 20px;
+            letter-spacing: 1px;
+            line-height: 2.2;
+            border: 1px dashed rgba(0,245,255,0.1);
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="corner c-tl"></div>
+<div class="corner c-tr"></div>
+<div class="corner c-bl"></div>
+<div class="corner c-br"></div>
+
+<div class="scene">
+    <div class="header">
+        <div class="logo-ring">
+            <svg viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="36" cy="36" r="33" stroke="rgba(0,245,255,0.3)" stroke-width="1" stroke-dasharray="6 4"/>
+                <circle cx="36" cy="36" r="26" stroke="rgba(123,47,255,0.5)" stroke-width="1.5" stroke-dasharray="3 5"/>
+                <circle cx="36" cy="36" r="18" stroke="rgba(0,245,255,0.6)" stroke-width="1" stroke-dasharray="10 3"/>
+            </svg>
+            <div class="logo-icon">🤖</div>
+        </div>
+        <div class="title">GDDC AI</div>
+        <div class="subtitle">DISTRIBUTED QUERY INTELLIGENCE SYSTEM</div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-bar">
+            <div class="panel-dots">
+                <div class="dot dot-r"></div>
+                <div class="dot dot-y"></div>
+                <div class="dot dot-g"></div>
+            </div>
+            <div class="panel-label">NEURAL_INTERFACE v2.4.1</div>
+            <div class="status-badge">
+                <div class="status-dot"></div>
+                ONLINE
+            </div>
+        </div>
+
+        <div class="chat-box" id="chat">
+            <div class="welcome-msg">
+                ━━━ SYSTEM INITIALIZED ━━━<br>
+                GDDC Distributed Intelligence Ready<br>
+                Awaiting Query Input...
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="input-area">
+            <div class="input-wrap">
+                <input type="text" id="query" placeholder="Enter query command..." autocomplete="off">
+            </div>
+            <button onclick="sendQuery()">Ask</button>
+        </div>
+
+        <div class="panel-footer">
+            <div class="stat">NODE: <span>ALPHA-7</span></div>
+            <div class="stat">LATENCY: <span>~12ms</span></div>
+            <div class="stat">DOMAINS: <span>ACTIVE</span></div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('query').addEventListener('keydown', e => {
+    if (e.key === 'Enter') sendQuery();
+});
+
+function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function addMessage(text, type) {
+    const chat = document.getElementById("chat");
+    const div = document.createElement("div");
+    div.className = "msg " + type;
+    div.innerText = text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+function sendQuery() {
+    const input = document.getElementById("query");
+    const query = input.value.trim();
+    if (!query) return;
+
+    const chat = document.getElementById("chat");
+
+    // User bubble
+    const userWrap = document.createElement("div");
+    userWrap.className = "msg-wrap user-wrap";
+    userWrap.innerHTML = `
+        <div class="msg-label">YOU</div>
+        <div class="msg user">${escapeHtml(query)}</div>
+    `;
+    chat.appendChild(userWrap);
+    chat.scrollTop = chat.scrollHeight;
+
+    input.value = "";
+
+    // Bot bubble
+    const botWrap = document.createElement("div");
+    botWrap.className = "msg-wrap bot-wrap";
+    botWrap.innerHTML = `
+        <div class="msg-label">GDDC</div>
+        <div class="msg bot">
+            <div class="status-row">
+                <span class="domain-status">Routing query...</span>
+                <span class="loading-dots"><span></span><span></span><span></span></span>
+            </div>
+            <div class="answer-block" style="display:none;">
+                <div class="answer-meta">◈ RESPONSE</div>
+                <div class="answer-text"></div>
+            </div>
+        </div>
+    `;
+    chat.appendChild(botWrap);
+    chat.scrollTop = chat.scrollHeight;
+
+    const bubble       = botWrap.querySelector('.msg.bot');
+    const domainStatus = bubble.querySelector('.domain-status');
+    const loadingDots  = bubble.querySelector('.loading-dots');
+    const answerBlock  = bubble.querySelector('.answer-block');
+    const answerText   = bubble.querySelector('.answer-text');
+
+    // Original fetch for domain/status
+    fetch("/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: query })
+    })
+    .then(res => res.json())
+    .then(data => {
+        domainStatus.textContent = `Domain: ${data.domain}  |  Status: ${data.status}`;
+    })
+    .catch(err => {
+        domainStatus.textContent = `Error: ${err}`;
+    });
+
+    // Poll for actual answer
+    const interval = setInterval(async () => {
+        const res = await fetch(`/get_answer?query=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (data.answer) {
+            loadingDots.remove();
+            answerBlock.style.display = 'block';
+            answerText.textContent = data.answer;
+            chat.scrollTop = chat.scrollHeight;
+            clearInterval(interval);
+        }
+    }, 2000);
+}
+</script>
+
+</body>
+</html>
