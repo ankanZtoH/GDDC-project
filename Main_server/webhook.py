@@ -18,7 +18,7 @@ templates = Jinja2Templates(
 def home(request: Request):
     return templates.TemplateResponse(
         request=request,
-        name="index.html",
+        name="anotherDesign.html",
         context={}
     )
 
@@ -144,12 +144,12 @@ def handle_query(query):
 
 @app.post("/receive")
 def receive(data: dict):
-    query = data["query"]
-    # query = data["query"].strip().lower() 
+    # query = data["query"]
+    query = data["query"].strip().lower() 
 
     answer = data["answer"]
 
-    print("Answer received:", data)
+    print("Answer received:", answer)
 
     # ✅ store answer
     responses[query] = answer
@@ -171,8 +171,8 @@ def get_answer(query: str):
 
 @app.post("/ask")
 def ask(data: dict):
-    query = data.get("query", "").strip()
-    # query = data.get("query", "").strip().lower()
+    # query = data.get("query", "").strip()
+    query = data.get("query", "").strip().lower()
 
     if not query:
         return {"error": "Query is required"}
