@@ -145,6 +145,8 @@ def handle_query(query):
 @app.post("/receive")
 def receive(data: dict):
     query = data["query"]
+    # query = data["query"].strip().lower() 
+
     answer = data["answer"]
 
     print("Answer received:", data)
@@ -155,21 +157,22 @@ def receive(data: dict):
     return {"status": "ok"}
 # ---------------- API ----------------
 
-# @app.get("/get_answer")
-# def get_answer(query: str):
-#     query = query.strip().lower()
+@app.get("/get_answer")
+def get_answer(query: str):
+    query = query.strip().lower()
+    # query = query.strip().lower()
+    answer = responses.get(query)
 
-#     answer = responses.get(query)
-
-#     if answer:
-#         return {"answer": answer}
-#     return {"answer": None}
+    if answer is not None:  # if show error remove "if not None" 
+        return {"answer": answer}
+    return {"answer": None}
 
 
 
 @app.post("/ask")
 def ask(data: dict):
     query = data.get("query", "").strip()
+    # query = data.get("query", "").strip().lower()
 
     if not query:
         return {"error": "Query is required"}
